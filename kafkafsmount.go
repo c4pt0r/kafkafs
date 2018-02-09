@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/hanwen/go-fuse/fuse"
@@ -17,7 +16,7 @@ import (
 	"github.com/tomheon/kafkafs/kafkafs"
 )
 
-func unmountOnInt(c chan os.Signal, server *fuse.Server, client *sarama.Client) {
+func unmountOnInt(c chan os.Signal, server *fuse.Server, client sarama.Client) {
 	s := <-c
 	fmt.Println("Got signal:", s)
 	server.Unmount()
@@ -31,8 +30,6 @@ func main() {
 		"Kafka server addresses host1:port1[;host2:port2...]")
 	var metadataRetries = commandLine.Int("metadataRetries", 10,
 		"Max times to attempt metadata refresh from Kafka before failing")
-	var waitForElectionMs = commandLine.Int("waitForElectionMs", 250,
-		"Max milliseconds to wait for Kafka leader election before failing")
 	var maxMsgBytes = commandLine.Int("maxMsgBytes", 1024*1024*10,
 		"Max bytes to pull for a single message")
 
@@ -51,9 +48,9 @@ func main() {
 	mountpoint := commandLine.Arg(0)
 
 	addrs := strings.Split(*kafkaAddrs, ";")
-	client, err := sarama.NewClient("kafkafs", addrs,
-		&sarama.ClientConfig{MetadataRetries: *metadataRetries,
-			WaitForElection: time.Duration(*waitForElectionMs) * time.Millisecond})
+	config := sarama.NewConfig()
+	config.Metadata.Retry.Max = *metadataRetries
+	client, err := sarama.NewClient(addrs, config)
 	if err != nil {
 		log.Fatalf("Error from client %s", err)
 	}
@@ -62,7 +59,7 @@ func main() {
 
 	nfs := pathfs.NewPathNodeFs(kafkafs.NewKafkaRoFs(kClient), nil)
 
-	server, _, err := nodefs.MountFileSystem(mountpoint, nfs, nil)
+	server, _, err := nodefs.MountRoot(mountpoint, nfs.Root(), nil)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)

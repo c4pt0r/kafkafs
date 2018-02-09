@@ -29,20 +29,20 @@ type KafkaClient interface {
 }
 
 type kafkaClient struct {
-	Client *sarama.Client
+	Client sarama.Client
 
 	MaxBytes int32
 }
 
 func (tsClient *kafkaClient) GetTopics() ([]string, error) {
-	tsClient.Client.RefreshAllMetadata()
+	tsClient.Client.RefreshMetadata()
 	topics, err := tsClient.Client.Topics()
 	return topics, err
 }
 
 func (tsClient *kafkaClient) GetPartitions(topic string) ([]int32,
 	error) {
-	tsClient.Client.RefreshTopicMetadata(topic)
+	tsClient.Client.RefreshMetadata(topic)
 	partitions, err := tsClient.Client.Partitions(topic)
 	return partitions, err
 }
@@ -56,9 +56,9 @@ func (tsClient *kafkaClient) GetBoundingOffsets(topic string,
 	}
 
 	offsetRequest := &sarama.OffsetRequest{}
-	offsetRequest.AddBlock(topic, partition, sarama.EarliestOffset, 100)
-	offsetRequest.AddBlock(topic, partition, sarama.LatestOffsets, 100)
-	offsetsResp, err := broker.GetAvailableOffsets("kafkafs", offsetRequest)
+	offsetRequest.AddBlock(topic, partition, sarama.OffsetOldest, 100)
+	offsetRequest.AddBlock(topic, partition, sarama.OffsetNewest, 100)
+	offsetsResp, err := broker.GetAvailableOffsets(offsetRequest)
 
 	if err != nil {
 		return 0, 0, err
@@ -82,7 +82,7 @@ func (tsClient *kafkaClient) GetMessage(topic string, partition int32,
 
 	fetchRequest := &sarama.FetchRequest{}
 	fetchRequest.AddBlock(topic, partition, offset, tsClient.MaxBytes)
-	fetchResp, err := broker.Fetch("kafkafs", fetchRequest)
+	fetchResp, err := broker.Fetch(fetchRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func (tsClient *kafkaClient) GetMessage(topic string, partition int32,
 	if responseBlock.Err != 0 {
 		return nil, errors.New(fmt.Sprintf("Error code: %d", responseBlock.Err))
 	}
-	msgSet := responseBlock.MsgSet
+	msgSet := responseBlock.Records.GetMsgSet()
 	if len(msgSet.Messages) == 0 {
 		// the offset didn't exist yet
 		return nil, nil
@@ -99,6 +99,6 @@ func (tsClient *kafkaClient) GetMessage(topic string, partition int32,
 	return msg.Value, nil
 }
 
-func NewKafkaClient(client *sarama.Client, maxBytes int32) KafkaClient {
+func NewKafkaClient(client sarama.Client, maxBytes int32) KafkaClient {
 	return &kafkaClient{Client: client, MaxBytes: maxBytes}
 }
