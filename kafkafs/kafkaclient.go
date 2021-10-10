@@ -90,7 +90,7 @@ func (tsClient *kafkaClient) GetMessage(topic string, partition int32,
 	if responseBlock.Err != 0 {
 		return nil, errors.New(fmt.Sprintf("Error code: %d", responseBlock.Err))
 	}
-	msgSet := responseBlock.Records.GetMsgSet()
+	msgSet := responseBlock.Records.MsgSet
 	if len(msgSet.Messages) == 0 {
 		// the offset didn't exist yet
 		return nil, nil

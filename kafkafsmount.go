@@ -13,7 +13,7 @@ import (
 	"github.com/hanwen/go-fuse/fuse/nodefs"
 	"github.com/hanwen/go-fuse/fuse/pathfs"
 
-	"github.com/tomheon/kafkafs/kafkafs"
+	"github.com/c4pt0r/kafkafs/kafkafs"
 )
 
 func unmountOnInt(c chan os.Signal, server *fuse.Server, client sarama.Client) {
